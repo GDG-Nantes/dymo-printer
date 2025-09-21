@@ -7,6 +7,7 @@ export interface Participant {
 export interface PrinterInfo {
   name: string;
   model: string;
+  isConnected: boolean;
 }
 
 export interface PrinterStatus {

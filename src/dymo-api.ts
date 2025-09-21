@@ -66,7 +66,7 @@ export class DymoAPI {
                 res.on('end', () => {
                     try {
                         const printers = this.parsePrintersXML(data);
-                        resolve(printers);
+                        resolve(printers.filter(p => p.isConnected));
                     } catch (error) {
                         reject(new Error('Erreur lors du parsing des imprimantes: ' + (error as Error).message));
                     }
@@ -86,29 +86,37 @@ export class DymoAPI {
     // Parser la réponse XML des imprimantes
     private parsePrintersXML(xmlData: string): PrinterInfo[] {
         const printers: PrinterInfo[] = [];
-        const printerMatches = xmlData.match(/<Name>(.*?)<\/Name>/g);
-        const modelMatches = xmlData.match(/<ModelName>(.*?)<\/ModelName>/g);
 
-        if (printerMatches && modelMatches) {
-            for (let i = 0; i < printerMatches.length; i++) {
-                const name = printerMatches[i].replace(/<\/?Name>/g, '');
-                const model = modelMatches[i] ? modelMatches[i].replace(/<\/?ModelName>/g, '') : '';
+        // Utiliser une regex pour extraire chaque bloc <LabelWriterPrinter>...</LabelWriterPrinter>
+        const printerBlocks = xmlData.match(/<LabelWriterPrinter[^>]*>[\s\S]*?<\/LabelWriterPrinter>/g);
 
-                printers.push({ name, model });
+        if (printerBlocks) {
+            for (const block of printerBlocks) {
+                const nameMatch = block.match(/<Name>(.*?)<\/Name>/);
+                const modelMatch = block.match(/<ModelName>(.*?)<\/ModelName>/);
+                const isConnectedMatch = block.match(/<IsConnected>(.*?)<\/IsConnected>/);
+
+                if (nameMatch) {
+                    const name = nameMatch[1];
+                    const model = modelMatch ? modelMatch[1] : '';
+                    const isConnected = isConnectedMatch ? isConnectedMatch[1].toLowerCase() === 'true' : false;
+
+                    printers.push({ name, model, isConnected });
+                }
             }
         }
 
+        console.log('Parsed printers:', printers);
         return printers;
     }
 
     // Imprimer une étiquette
     async printLabel(printerName: string, labelXml: string, copies: number = 1): Promise<boolean> {
         return new Promise((resolve, reject) => {
-            const postData = querystring.stringify({
-                printerName: printerName,
-                labelXml: labelXml,
-                labelSetXml: ''
-            });
+            // Encoder manuellement les paramètres pour éviter les problèmes avec querystring.stringify
+            const postData = `printerName=${encodeURIComponent(printerName)}&labelXml=${encodeURIComponent(labelXml)}&labelSetXml=`;
+
+            console.log("DymoAPI.postData length:", postData.length);
 
             const options = {
                 hostname: '127.0.0.1',
@@ -127,6 +135,7 @@ export class DymoAPI {
                 let data = '';
                 res.on('data', chunk => data += chunk);
                 res.on('end', () => {
+                    console.log(`Response status: ${res.statusCode}, body: ${data.trim()}`);
                     if (res.statusCode === 200) {
                         resolve(data.trim() === 'true');
                     } else {
@@ -146,69 +155,4 @@ export class DymoAPI {
         });
     }
 
-    // Vérifier le statut d'une imprimante spécifique
-    async getPrinterStatus(printerName: string): Promise<PrinterStatus> {
-        return new Promise((resolve, reject) => {
-            const options = {
-                hostname: '127.0.0.1',
-                port: 41951,
-                path: `/DYMO/DLS/Printing/GetPrinterStatus?printerName=${encodeURIComponent(printerName)}`,
-                method: 'GET',
-                agent: this.httpsAgent,
-                timeout: this.timeout
-            };
-
-            const req = https.request(options, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => {
-                    try {
-                        const status = this.parseStatusXML(data);
-                        resolve(status);
-                    } catch (error) {
-                        reject(new Error('Erreur lors du parsing du statut: ' + (error as Error).message));
-                    }
-                });
-            });
-
-            req.on('error', reject);
-            req.on('timeout', () => {
-                req.destroy();
-                reject(new Error('Timeout lors de la vérification du statut'));
-            });
-
-            req.end();
-        });
-    }
-
-    // Parser le statut XML
-    private parseStatusXML(xmlData: string): PrinterStatus {
-        const status: PrinterStatus = {
-            connected: false,
-            ready: false,
-            error: null
-        };
-
-        try {
-            const connectedMatch = xmlData.match(/<Connected>(.*?)<\/Connected>/);
-            const readyMatch = xmlData.match(/<Ready>(.*?)<\/Ready>/);
-            const errorMatch = xmlData.match(/<ErrorText>(.*?)<\/ErrorText>/);
-
-            if (connectedMatch) {
-                status.connected = connectedMatch[1].toLowerCase() === 'true';
-            }
-
-            if (readyMatch) {
-                status.ready = readyMatch[1].toLowerCase() === 'true';
-            }
-
-            if (errorMatch && errorMatch[1].trim()) {
-                status.error = errorMatch[1];
-            }
-        } catch (error) {
-            console.warn('Erreur lors du parsing du statut XML:', (error as Error).message);
-        }
-
-        return status;
-    }
 }

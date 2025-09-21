@@ -7,7 +7,7 @@ import { Participant } from './types';
 export class DymoLabelPrinter {
     private participants: Participant[] = [];
     private dymoAPI: DymoAPI;
-    private printerName: string = 'DYMO LabelWriter 550';
+    private printerName: string = ''; // Ne plus hardcoder le nom
 
     constructor() {
         this.dymoAPI = new DymoAPI();
@@ -62,65 +62,8 @@ export class DymoLabelPrinter {
                 roleDisplay = 'PARTICIPANT';
         }
 
-        // Template XML avec nom en gros en haut à gauche et rôle en petit en bas
-        return `<DieCutLabel Version="8.0" Units="twips">
-    <PaperOrientation>Landscape</PaperOrientation>
-    <Id>Address</Id>
-    <PaperName>30252 Address</PaperName>
-    <DrawCommands/>
-    <ObjectInfo>
-        <TextObject>
-            <Name>NAME</Name>
-            <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-            <BackColor Alpha="0" Red="255" Green="255" Blue="255"/>
-            <LinkedObjectName/>
-            <Rotation>Rotation0</Rotation>
-            <IsMirrored>False</IsMirrored>
-            <IsVariable>True</IsVariable>
-            <HorizontalAlignment>Left</HorizontalAlignment>
-            <VerticalAlignment>Top</VerticalAlignment>
-            <TextFitMode>ShrinkToFit</TextFitMode>
-            <UseFullFontHeight>True</UseFullFontHeight>
-            <Verticalized>False</Verticalized>
-            <StyledText>
-                <Element>
-                    <String>${fullName}</String>
-                    <Attributes>
-                        <Font Family="Arial" Size="14" Bold="True" Italic="False" Underline="False" Strikeout="False"/>
-                        <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-                    </Attributes>
-                </Element>
-            </StyledText>
-        </TextObject>
-        <Bounds X="150" Y="150" Width="3000" Height="400"/>
-    </ObjectInfo>
-    <ObjectInfo>
-        <TextObject>
-            <Name>ROLE</Name>
-            <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-            <BackColor Alpha="0" Red="255" Green="255" Blue="255"/>
-            <LinkedObjectName/>
-            <Rotation>Rotation0</Rotation>
-            <IsMirrored>False</IsMirrored>
-            <IsVariable>True</IsVariable>
-            <HorizontalAlignment>Left</HorizontalAlignment>
-            <VerticalAlignment>Bottom</VerticalAlignment>
-            <TextFitMode>ShrinkToFit</TextFitMode>
-            <UseFullFontHeight>True</UseFullFontHeight>
-            <Verticalized>False</Verticalized>
-            <StyledText>
-                <Element>
-                    <String>${roleDisplay}</String>
-                    <Attributes>
-                        <Font Family="Arial" Size="8" Bold="False" Italic="False" Underline="False" Strikeout="False"/>
-                        <ForeColor Alpha="255" Red="0" Green="0" Blue="0"/>
-                    </Attributes>
-                </Element>
-            </StyledText>
-        </TextObject>
-        <Bounds X="150" Y="600" Width="3000" Height="250"/>
-    </ObjectInfo>
-</DieCutLabel>`;
+        // Template XML compact (sur une seule ligne comme dans la requête HTTP qui fonctionne)
+        return `<DieCutLabel Version="8.0" Units="twips"><PaperOrientation>Landscape</PaperOrientation><Id>Address</Id><PaperName>30252 Address</PaperName><DrawCommands/><ObjectInfo><TextObject><Name>NAME</Name><ForeColor Alpha="255" Red="0" Green="0" Blue="0"/><BackColor Alpha="0" Red="255" Green="255" Blue="255"/><LinkedObjectName/><Rotation>Rotation0</Rotation><IsMirrored>False</IsMirrored><IsVariable>True</IsVariable><HorizontalAlignment>Center</HorizontalAlignment><VerticalAlignment>Top</VerticalAlignment><TextFitMode>ShrinkToFit</TextFitMode><UseFullFontHeight>True</UseFullFontHeight><Verticalized>False</Verticalized><StyledText><Element><String>${fullName}</String><Attributes><Font Family="Arial" Size="14" Bold="True" Italic="False" Underline="False" Strikeout="False"/><ForeColor Alpha="255" Red="0" Green="0" Blue="0"/></Attributes></Element></StyledText></TextObject><Bounds X="150" Y="150" Width="3000" Height="400"/></ObjectInfo><ObjectInfo><TextObject><Name>ROLE</Name><ForeColor Alpha="255" Red="0" Green="0" Blue="0"/><BackColor Alpha="0" Red="255" Green="255" Blue="255"/><LinkedObjectName/><Rotation>Rotation0</Rotation><IsMirrored>False</IsMirrored><IsVariable>True</IsVariable><HorizontalAlignment>Center</HorizontalAlignment><VerticalAlignment>Bottom</VerticalAlignment><TextFitMode>ShrinkToFit</TextFitMode><UseFullFontHeight>True</UseFullFontHeight><Verticalized>False</Verticalized><StyledText><Element><String>${roleDisplay}</String><Attributes><Font Family="Arial" Size="10" Bold="False" Italic="False" Underline="False" Strikeout="False"/><ForeColor Alpha="255" Red="0" Green="0" Blue="0"/></Attributes></Element></StyledText></TextObject><Bounds X="150" Y="600" Width="3000" Height="250"/></ObjectInfo></DieCutLabel>`;
     }
 
     // Imprimer une étiquette via l'API Dymo réelle
@@ -200,25 +143,32 @@ export class DymoLabelPrinter {
             console.log(`📄 ${printers.length} imprimante(s) DYMO détectée(s):`);
 
             printers.forEach((printer, index) => {
-                console.log(`   ${index + 1}. ${printer.name} (${printer.model})`);
+                console.log(`   ${index + 1}. ${printer.name} (${printer.model}) -- Connectée: ${printer.isConnected ? 'Oui' : 'Non'}`);
             });
 
             // Vérifier si une imprimante DYMO LabelWriter est disponible
             const targetPrinter = printers.find(p =>
-                p.name.toLowerCase().includes('dymo labelwriter')
+                p.name.toLowerCase().includes('dymo labelwriter') && p.isConnected
             );
 
             if (!targetPrinter) {
-                console.log(`⚠️  Aucune imprimante DYMO LabelWriter trouvée`);
+                console.log(`⚠️  Aucune imprimante DYMO LabelWriter connectée trouvée`);
                 if (printers.length > 0) {
-                    console.log(`ℹ️  Utilisation de la première imprimante disponible: ${printers[0].name}`);
-                    this.printerName = printers[0].name;
-                    return true;
+                    const firstConnected = printers.find(p => p.isConnected);
+                    if (firstConnected) {
+                        console.log(`ℹ️  Utilisation de la première imprimante connectée: ${firstConnected.name}`);
+                        this.printerName = firstConnected.name;
+                        return true;
+                    }
                 }
+                console.log(`❌ Aucune imprimante connectée disponible`);
                 return false;
             }
 
+            // CORRECTION : Assigner le nom de l'imprimante trouvée
+            this.printerName = targetPrinter.name;
             console.log(`✅ Imprimante DYMO LabelWriter trouvée: ${targetPrinter.name}`);
+            console.log(`🖨️  Utilisation de l'imprimante: ${this.printerName}`);
 
             return true;
 

@@ -11,10 +11,16 @@
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
-    "typescript": "^5.9.2",
-    "tsx": "^4.19.1"
+    "tsx": "^4.19.1",
+    "typescript": "^5.9.2"
   },
-  "keywords": ["dymo", "label", "printer", "csv", "typescript"],
+  "keywords": [
+    "dymo",
+    "label",
+    "printer",
+    "csv",
+    "typescript"
+  ],
   "author": "",
   "license": "MIT"
 }

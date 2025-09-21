@@ -106,7 +106,7 @@ export class DymoAPI {
             }
         }
 
-        console.log('Parsed printers:', printers);
+        // console.log('Parsed printers:', printers);
         return printers;
     }
 
